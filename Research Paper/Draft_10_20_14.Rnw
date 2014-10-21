@@ -41,26 +41,32 @@ First we must install and load the R libraries. \\
 install.packages(c("maptools", "data.table", "ggmap", "dplyr", "RCurl", "ggplot2", "reshape2"))
 @
 
-<<>>==
-
+<<>>=
 library(RCurl)
-library(ggplot2)
 library(reshape2)
-require(maptools)
+library(ggplot2)
+library(maptools)
 library(data.table)
 library(ggmap)
 library(dplyr)
 @
 
+
 We have also created a source for all of our data to be accessed by the public. We will call some of that data. This will help us produce an artificial data set. \\
 
 <<>>=
-data1 <- getURL('https://raw.githubusercontent.com/Jwcrist/Group-2/
-               master/Data/origin_lat_long3.csv', ssl.verifypeer=0L, followlocation=1L)
+
+
+data1 <- getURL(
+  'https://raw.githubusercontent.com/Jwcrist/Group-2/master/Data/origin_lat_long3.csv',
+  ssl.verifypeer=0L, followlocation=1L)
 origin <- read.csv(text=data1)
-data2 <- getURL('https://raw.githubusercontent.com/Jwcrist/Group-2/
-               master/Data/Drayage_final_coords.csv', ssl.verifypeer=0L, followlocation=1L)
+origin
+data2 <- getURL(
+  'https://raw.githubusercontent.com/Jwcrist/Group-2/master/Data/Drayage_final_coords.csv',
+  ssl.verifypeer=0L, followlocation=1L)
 drayage <- read.csv(text=data2)
+head(drayage)
 @
 
 Next, we will generate the artificial data that will be an inexact, but not dis-similar data set that can be provided by any rail intermodal corporation.
@@ -79,6 +85,7 @@ head(art.data)
 @
 
 We can now aggregate the data across drayage nodes to begin the process of determining patterns.
+
 
 <<>>==
 art.in <- art.data %>%
@@ -243,3 +250,4 @@ ggplot() + geom_polygon(aes(long,lat, group=group), fill="grey65",
 \end{thebibliography}
 
 \end{document}
+

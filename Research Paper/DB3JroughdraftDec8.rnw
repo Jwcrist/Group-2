@@ -1,0 +1,197 @@
+\documentclass{article}
+%\usepackage[margin=1in]{geometry} % set up margins
+\usepackage[vmargin=1in,hmargin=1in]{geometry}
+\usepackage{tikz}
+\usepackage{booktabs}
+\usepackage[backend=bibtex]{biblatex}
+\begin{document}
+\title {Dynamic Geo-Spatial Data Product Identifies Customer Shipping Patterns}
+\author{Rebecca Brusky, Jace Crist, Davina Faimon, Jonah Williams, Joshua Wittenbach\\ Department of Mathematics\\ University of Nebraska at Omaha }
+\maketitle
+<<include=FALSE>>=
+opts_chunk$set(fig.align='center',fig.path="./", cache=FALSE)
+@
+\begin{abstract}Currently, intermodal corporations have flat fee systems which do not incorporate a multidimensional pricing platform. One aspect which has yet to be utilized is freight capacity, which is difficult to conceptualize. We plan to create a spatial visualization of the location traffic using data compiled from public sources. We expect to find patterns from month-to-month, and use these variations help locate, classify and exploit target areas.  Our data product observes when a customer does or does purchase a product over a series of time based on months. The results of this reproducible analysis can be used to assist in the forecasting of a multidimensional pricing model based on customer location and frequency. This frequency model will drive the possibilities for developing more sophisticated data products in the future.
+\end{abstract}
+%\tableofcontents
+\section{Introduction} Current models for pricing do not take advantage of data collected from intermodal transactions. It is a flat fee system. The data collected can be mined for more efficient methods. Creating an automated, predictive process in which any intermodal company could leverage network density as a pricing variable is the focus of this project. Using publicly available data, patterns of throughput across drayage nodes can be modeled and visualized as a proxy for analysis in order to understand customer demand.
+The process of intermodal shipping consists of a single means of transportation from a customer to a drayage location where the cargo is then loaded onto any other mode of transportation. The cargo is then picked up at a connecting drayage location and delivered to the receiving party or shipped internationally. However, our focus will be on the continental United States and its drayage locations.
+The visualization will consist of the railroad tracks of the United States overlaid with shipping origination cities, railway drayage points and customer buying patterns.  We are able to use real data provided by a private source showing the customer and location rate of frequencies as proof of concept. \\
+\section{Development Process} Originally, we were presented with a problem: Is there a way to create a dynamic pricing system that could improve on the current pricing system. We began considering different possibilities for data visualization and analysis of this intermodal shipping data such as railway traffic patterns and seasonal analysis. We found that the details of these orders necessary for more elaborate analysis proposed are not publicly available . Nevertheless, the importance of drayage locations in the shipping process presented an opportunity for graph-based analysis considering drayage nodes where the cargo interchanges with rail. Our ultimate goal is to understand the spatial traffic patterns through the drayage nodes.\\
+\section{Artificial Data set} Using known industry standards we constructed a randomly generated simulation of intermodal traffic.  Given our created reproducible data product, any intermodal shipping company could benefit by introducing their own data sets into this turn key process.
+First we must install and load the R libraries. \\
+
+<<warning=FALSE, message=FALSE, echo=FALSE>>=
+library(RCurl)
+library(reshape2)
+library(ggplot2)
+library(maptools)
+library(data.table)
+library(ggmap)
+library(dplyr)
+@
+We have also created a source for all of our data to be accessed by the public. Initially we will call our public data sets and create a simulated frequency table. 
+\\
+<<>>=
+data1 <- getURL(
+'https://raw.githubusercontent.com/Jwcrist/Group-2/master/Data/origin_lat_long3.csv',
+ssl.verifypeer=0L, followlocation=1L)
+origin <- read.csv(text=data1)
+data2 <- getURL(
+'https://raw.githubusercontent.com/Jwcrist/Group-2/master/Data/Drayage_final_coords.csv',
+ssl.verifypeer=0L, followlocation=1L)
+drayage <- read.csv(text=data2)
+
+days <- seq( as.Date("2013-01-01"), by=1, len=365)
+art.orign <- sample(x=origin$X, size=1000000, replace=T)
+art.odray <- sample(x=drayage$X, size=1000000, replace=T)
+art.ddray <- sample(x=drayage$X, size=1000000, replace=T)
+art.dest <- sample(x=origin$X, size=1000000, replace=T)
+art.date <- sample(x=days, size=1000000, replace=T)
+art.data <- data.frame(art.orign, art.odray, art.ddray, art.dest, art.date)
+@
+We can now aggregate the data across drayage nodes to begin the process of determining patterns.
+<<>>==
+art.in <- art.data %>%
+group_by(art.odray) %>%
+mutate(count = 1) %>%
+summarise(Count=sum(count))
+art.in$Count<-(art.in$Count*runif(98,0,1))
+art.out <- art.data %>%
+group_by(art.ddray) %>%
+mutate(count = 1) %>%
+summarise(Count=sum(count))
+art.out$Count<-(art.out$Count*runif(98,0,1))
+art.tot <- merge(art.in, art.out, by = intersect(names(x),names(y)),
+by.x = 'art.odray', by.y = 'art.ddray')
+colnames(art.tot) <- c('drayage', 'din', 'dout')
+art.tot <- art.tot %>%
+mutate(total = din + dout)
+art.tot <- merge(art.tot, drayage, by.x = 'drayage', by.y = 'X')
+@
+Now we want to visualize the patterns of drayage traffic. Let us first turn our attention to the data from the ggmaps package to create the outline of the United States. This will provide a canvas for our data visuals.
+<<>>=
+#----------
+# Get GPS of States and Counties
+us.dat <- map_data("state")
+ct.dat <- map_data("county")
+@
+Let's next collect all of the data necessary for the creation of the railway network in the continental United States. We have provided codes that simplify making clear what each column is representing.
+<<>>=
+Customers<-getURL(
+  "https://raw.githubusercontent.com/Jwcrist/Group-2/master/Data/origin_lat_long3.csv",
+  ssl.verifypeer=0L, followlocation=1L)
+Customers <- read.csv(text = Customers)
+colnames(Customers)<-c("X","lon", "lat")
+USTrack<-getURL(
+  "https://raw.githubusercontent.com/Jwcrist/Group-2/master/Data/Rail_lines.csv",
+  ssl.verifypeer=0L, followlocation=1L)
+USTrack<-read.csv(text = USTrack)
+Drayage<-getURL(
+  "https://raw.githubusercontent.com/Jwcrist/Group-2/master/Data/Drayage_final_coords.csv",
+  ssl.verifypeer=0L, followlocation=1L)
+Drayage<-read.csv(text = Drayage)
+colnames(Drayage)<-c("X","lon", "lat")
+@
+This code defines the continental United States using latitude and longitude.
+<<>>=
+Customer1 <- subset(Customers,lon>min(us.dat$long),select = c("lon","lat"))
+Customer2 <- subset(Customer1,lon<max(us.dat$long),select = c("lon","lat"))
+Customer3 <- subset(Customer2,lat>min(us.dat$lat),select = c("lon","lat"))
+Customer4 <- subset(Customer3,lat<max(us.dat$lat),select = c("lon","lat"))
+
+USTrack<-as.data.table(USTrack)
+USTracks<-USTrack[,8:9, with=FALSE]
+USTracks1 <- subset(USTracks,coords.x1>min(us.dat$long),select = c("coords.x1","coords.x2"))
+USTracks2 <- subset(USTracks1,coords.x1<max(us.dat$long),select = c("coords.x1","coords.x2"))
+USTracks3 <- subset(USTracks2,coords.x2>min(us.dat$lat),select = c("coords.x1","coords.x2"))
+USTracks4 <- subset(USTracks3,coords.x2<max(us.dat$lat),select = c("coords.x1","coords.x2"))
+@
+\newpage
+The first visual is the continental United States.\\
+<<>>=
+ggplot() + geom_polygon(aes(long,lat, group=group), fill="grey65",
+data=ct.dat) + geom_polygon(aes(long,lat, group=group),
+color='white', fill=NA, data=us.dat) + theme_bw() +
+theme(axis.text = element_blank(), axis.title=element_blank())
+@
+\newpage
+We will now apply data collected from ESRI. This data contains the longitude and latitude of each rail point. These longitudes and latitudes will be used to visualize the complexity of main tracks.\\
+<<>>=
+ggplot() + geom_polygon(aes(long,lat, group=group), fill="grey65",
+data=ct.dat) + geom_polygon(aes(long,lat, group=group),
+color='white', fill=NA, data=us.dat) + theme_bw() +
+theme(axis.text = element_blank(), axis.title=element_blank()) +
+geom_point(colour="grey50",data=USTracks4,
+           aes(x=coords.x1,y=coords.x2,colour="Rail"), size = 1)
+@
+\newpage
+The drayage locations were plotted as large points to mark the conveyance of the shipments. Notice, the drayage included are all major access points through the United States. This includes water access drayage and international, as they may be future clients. \\
+<<>>=
+ggplot() + geom_polygon(aes(long,lat, group=group), fill="grey65",
+data=ct.dat) + geom_polygon(aes(long,lat, group=group),
+color='white', fill=NA, data=us.dat) + theme_bw() +
+theme(axis.text = element_blank(), axis.title=element_blank()) +
+geom_point(colour="grey50",data=USTracks4,
+           aes(x=coords.x1,y=coords.x2,colour="Rail"), size = 1) +
+geom_point(colour="#1f78b4",data=Drayage,
+           aes(x=lon,y=lat,colour="Drayage"),size = 4)
+@
+\newpage
+Next intermodal corporation locations are plotted. \\
+<<>>=
+ggplot() + geom_polygon(aes(long,lat, group=group), fill="grey65",
+data=ct.dat) + geom_polygon(aes(long,lat, group=group),
+color='white', fill=NA, data=us.dat) + theme_bw() +
+theme(axis.text = element_blank(), axis.title=element_blank()) +
+geom_point(colour="grey50",data=USTracks4,
+           aes(x=coords.x1,y=coords.x2,colour="Rail"), size = 1) +
+geom_point(colour="#1f78b4",data=Drayage,
+           aes(x=lon,y=lat,colour="Drayage"),size = 4) +
+geom_point(colour="#fc8d62",data=Customer4,
+           aes(x=lon,y=lat,colour="City"),size = 2.2)
+@
+\newpage
+Most corporations are located at major metropolitan areas, such as Chicago, New York, Los Angeles, and Minneapolis.
+<<>>=
+ggplot() + geom_polygon(aes(long,lat, group=group), fill="grey65",
+data=ct.dat) + geom_polygon(aes(long,lat, group=group),
+color='white', fill=NA, data=us.dat) + theme_bw() +
+theme(axis.text = element_blank(), axis.title=element_blank()) +
+geom_point(colour="grey50",data=USTracks4,
+           aes(x=coords.x1,y=coords.x2,colour='Total Shipments'), size = 1) +
+geom_point(data=art.tot,
+           aes(x=lon,y=lat,colour=din),size = 4) +
+theme(legend.justification=c(1,0), legend.position=c(1,0))
+@
+\newpage
+\section{Future Steps}
+Results and conclusions will be included in future drafts.
+
+\begin{thebibliography}{9}
+\bibitem{xtab}
+\emph{Department of Transportation.} Department of Transportation. N.p., n.d. Web. 19 Oct. 2014. <http://www.dot.gov/>.
+\bibitem{ytab}
+\emph{A Directory of Intermodal \& Import / Export Trucking Companies.} The Drayage Directory. N.p, n.d. Web. 19 Oct. 2014. <http://www.drayage.com/>
+\bibitem{ztab}
+\emph{Esri - GIS Mapping Software, Solutions, Services, Map Apps, and Data.}  Esri RSS News. N.p., n.d. Web. 19 Oct. 2014. <http://www.esri.com/>
+\bibitem{zztab}
+\emph{xtable: Export tables to LaTeX or HTML},
+R package version 1.7-3,
+http://CRAN.R-project.org/package=xtable,
+2014
+\bibitem{lamport94}
+Leslie Lamport, \emph{\LaTeX: A Document Preparation System}.
+Addison Wesley, Massachusetts,
+2nd Edition, 1994.
+\bibitem{R-base}
+R Core Team, \emph{R: A Language and Environment for Statistical Computing},
+R Foundation for Statistical Computing,
+Vienna, Austria, http://www.R-project.org/ ,
+2014
+\bibitem{R-knitr}
+Yihui Xie
+\emph{knitr: A general-purpose package for dynamic report generation in R},
+http://yihui.name/knitr/, 2014
+\end{thebibliography}
+\end{document}
